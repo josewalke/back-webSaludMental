@@ -1,0 +1,300 @@
+# ===================================
+# BACKEND (Node.js + Express + SQLite)
+# ===================================
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===================================
+# ENVIRONMENT & CONFIGURATION
+# ===================================
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.staging
+.env.production
+
+# Configuration files with sensitive data
+config/production.js
+config/staging.js
+config/local.js
+backend-config.js
+database-config.js
+
+# SSL Certificates
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+ssl/
+certs/
+
+# ===================================
+# DATABASE FILES
+# ===================================
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+database.sqlite*
+*.db-shm
+*.db-wal
+
+# Database backups
+db-backup/
+database-backup/
+*.sql.gz
+*.dump
+
+# Database migrations (if sensitive)
+# migrations/
+
+# ===================================
+# LOGS & MONITORING
+# ===================================
+
+# Application logs
+logs/
+*.log
+server.log
+app.log
+error.log
+access.log
+combined.log
+
+# PM2 logs
+.pm2/
+pm2.log
+
+# Forever logs
+forever.log
+
+# Winston logs
+winston-*.log
+
+# ===================================
+# UPLOADS & USER CONTENT
+# ===================================
+
+# File uploads
+uploads/
+public/uploads/
+static/uploads/
+media/
+files/
+
+# Temporary files
+temp/
+tmp/
+.tmp/
+
+# Image processing cache
+image-cache/
+thumb-cache/
+
+# ===================================
+# CACHE & SESSION
+# ===================================
+
+# Redis dumps
+dump.rdb
+
+# Session files
+sessions/
+*.session
+
+# Cache directories
+.cache/
+cache/
+.node-cache/
+
+# ===================================
+# SECURITY & AUTHENTICATION
+# ===================================
+
+# JWT secrets
+jwt-secret.key
+*.secret
+
+# API keys
+api-keys/
+secrets/
+.secrets/
+
+# OAuth tokens
+oauth-tokens/
+.oauth/
+
+# Session secrets
+session-secret.key
+
+# ===================================
+# TESTING & DEVELOPMENT
+# ===================================
+
+# Test coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Test databases
+test.db
+test.sqlite
+*test*.db
+
+# Jest cache
+.jest-cache/
+
+# Mocha results
+test-results/
+mochawesome-report/
+
+# ===================================
+# DEPLOYMENT & CI/CD
+# ===================================
+
+# Docker
+.dockerignore
+Dockerfile.dev
+docker-compose.override.yml
+
+# Deployment scripts (if sensitive)
+deploy.sh
+deployment/
+
+# Build artifacts
+build/
+dist/
+
+# ===================================
+# MONITORING & PROFILING
+# ===================================
+
+# Performance monitoring
+newrelic_agent.log
+.newrelic/
+
+# Profiling results
+*.prof
+*.cpuprofile
+*.heapprofile
+
+# Memory dumps
+*.heapdump
+
+# ===================================
+# OPERATING SYSTEM
+# ===================================
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Linux
+*~
+.directory
+
+# ===================================
+# EDITORS & IDEs
+# ===================================
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains
+.idea/
+*.iml
+
+# Vim
+*.swp
+*.swo
+
+# ===================================
+# PACKAGE MANAGERS
+# ===================================
+
+# npm
+.npm/
+npm-debug.log*
+
+# Yarn
+.yarn-integrity
+.yarn/cache/
+yarn-error.log
+
+# pnpm
+.pnpm-debug.log*
+
+# ===================================
+# RUNTIME & PROCESS
+# ===================================
+
+# Process IDs
+*.pid
+*.pid.lock
+
+# Runtime directories
+.runtime/
+runtime/
+
+# Lock files for single instance
+.lock
+*.lock
+
+# ===================================
+# BACKUP & ARCHIVE
+# ===================================
+
+# Backup files
+*.backup
+*.bak
+backup/
+backups/
+
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+
+# ===================================
+# PROJECT SPECIFIC
+# ===================================
+
+# Email templates compiled
+email-templates-compiled/
+
+# Generated documentation
+docs/generated/
+api-docs/
+
+# Seed data (if sensitive)
+# seeds/production/
+
+# Migration rollback files
+*.rollback.sql
+
+# Custom scripts (if sensitive)
+scripts/production/
+scripts/staging/
+
+# Third-party integrations cache
+integrations-cache/
+
+# Webhook logs
+webhook-logs/

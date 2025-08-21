@@ -1,0 +1,302 @@
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
+const slowDown = require('express-slow-down');
+const path = require('path');
+require('dotenv').config();
+
+// Importar base de datos
+const database = require('./database/connection');
+
+// Importar rutas
+const authRoutes = require('./routes/auth-simple');
+const questionnaireRoutes = require('./routes/questionnaires');
+const adminRoutes = require('./routes/admin');
+
+// Importar middlewares
+// const errorHandler = require('./middleware/errorHandler');
+const authMiddleware = require('./middleware/auth-simple');
+// const requestLogger = require('./middleware/requestLogger');
+
+// Crear aplicación Express
+const app = express();
+
+// ========================================
+// CONFIGURACIÓN DEL SERVIDOR
+// ========================================
+
+const PORT = process.env.PORT || 3001;
+const HOST = process.env.HOST || 'localhost';
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// ========================================
+// MIDDLEWARES DE SEGURIDAD
+// ========================================
+
+// Helmet para headers de seguridad
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "https:"],
+      objectSrc: ["'none"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none"]
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
+}));
+
+// CORS configurado
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://localhost:5177', 'http://localhost:5178'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin'
+  ],
+  exposedHeaders: ['X-Total-Count', 'X-Page-Count']
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: process.env.RATE_LIMIT_MAX_REQUESTS || 100, // máximo 100 requests por ventana
+  message: {
+    error: 'Demasiadas solicitudes desde esta IP',
+    message: 'Intenta de nuevo más tarde',
+    retryAfter: Math.ceil(15 * 60 / 60) // en minutos
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+  skipFailedRequests: false
+});
+
+// Slow down para requests repetitivos
+const speedLimiter = slowDown({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  delayAfter: 50, // permitir 50 requests por 15 minutos sin delay
+  delayMs: 500, // agregar 500ms de delay por request después del límite
+  maxDelayMs: 20000 // máximo 20 segundos de delay
+});
+
+// Aplicar limitadores
+app.use('/api/', limiter);
+app.use('/api/', speedLimiter);
+
+// ========================================
+// MIDDLEWARES DE PROCESAMIENTO
+// ========================================
+
+// Compresión gzip
+app.use(compression({
+  level: 6,
+  threshold: 1024,
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
+
+// Logging con Morgan
+app.use(morgan(NODE_ENV === 'development' ? 'dev' : 'combined', {
+  stream: {
+    write: (message) => {
+      console.log(message.trim());
+    }
+  }
+}));
+
+// Parsear JSON y URL encoded
+app.use(express.json({ 
+  limit: process.env.BODY_LIMIT || '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: process.env.BODY_LIMIT || '10mb' 
+}));
+
+// ========================================
+// MIDDLEWARES PERSONALIZADOS
+// ========================================
+
+// Logger de requests
+// app.use(requestLogger);
+
+// ========================================
+// RUTAS DE LA API
+// ========================================
+
+// Ruta de salud
+app.get('/health', async (req, res) => {
+  try {
+    const dbStatus = database.isReady() ? 'connected' : 'disconnected';
+    
+    res.status(200).json({
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: NODE_ENV,
+      version: '1.0.0',
+      database: dbStatus,
+      memory: process.memoryUsage(),
+      platform: process.platform,
+      nodeVersion: process.version
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'ERROR',
+      message: 'Error checking health status',
+      error: error.message
+    });
+  }
+});
+
+// Ruta de información del sistema
+app.get('/system/info', async (req, res) => {
+  try {
+    const stats = await database.getStats();
+    res.json({
+      system: {
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        cpu: process.cpuUsage()
+      },
+      database: stats,
+      environment: NODE_ENV,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Error obteniendo información del sistema',
+      message: error.message
+    });
+  }
+});
+
+// Rutas de la API
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/questionnaires', questionnaireRoutes);
+// app.use('/api/analytics', authMiddleware, analyticsRoutes);
+// app.use('/api/system', authMiddleware, systemRoutes);
+
+// ========================================
+// MANEJO DE ERRORES
+// ========================================
+
+// Ruta no encontrada
+app.use('*', (req, res) => {
+  res.status(404).json({
+    error: {
+      code: 'NOT_FOUND',
+      message: 'Ruta no encontrada',
+      timestamp: new Date().toISOString(),
+      path: req.originalUrl,
+      method: req.method
+    }
+  });
+});
+
+// Middleware de manejo de errores
+// app.use(errorHandler);
+
+// ========================================
+// INICIALIZACIÓN DEL SERVIDOR
+// ========================================
+
+let server;
+
+async function startServer() {
+  try {
+    // Conectar a la base de datos
+     // console.log('🔌 Conectando a la base de datos...');
+    await database.connect();
+    
+    // Iniciar servidor
+    server = app.listen(PORT, HOST, () => {
+      // console.log('🚀 Servidor backend iniciado exitosamente!');
+      // console.log(`📍 URL: http://${HOST}:${PORT}`);
+      // console.log(`🌍 Entorno: ${NODE_ENV}`);
+      // console.log(`⏰ Iniciado: ${new Date().toLocaleString('es-ES')}`);
+      // console.log('📊 Health check: http://localhost:3001/health');
+      // console.log('🔍 System info: http://localhost:3001/system/info');
+      // console.log('📚 API Docs: http://localhost:3001/api/docs');
+    });
+
+    // Manejo de señales de terminación
+    process.on('SIGTERM', gracefulShutdown);
+    process.on('SIGINT', gracefulShutdown);
+
+    // Manejo de errores no capturados
+    process.on('uncaughtException', (error) => {
+      // console.error('💥 Error no capturado:', error);
+      gracefulShutdown();
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      // console.error('💥 Promesa rechazada no manejada:', reason);
+      gracefulShutdown();
+    });
+
+  } catch (error) {
+    // console.error('💥 Error iniciando servidor:', error);
+    process.exit(1);
+  }
+}
+
+async function gracefulShutdown() {
+  // console.log('🛑 Señal de terminación recibida, cerrando servidor...');
+  
+  try {
+    // Cerrar servidor HTTP
+    if (server) {
+      await new Promise((resolve) => {
+        server.close(resolve);
+      });
+      // console.log('✅ Servidor HTTP cerrado');
+    }
+
+    // Cerrar conexión de base de datos
+    await database.close();
+    // console.log('✅ Conexión de base de datos cerrada');
+
+    // console.log('🎉 Servidor cerrado correctamente');
+    process.exit(0);
+    
+  } catch (error) {
+    // console.error('💥 Error durante el cierre:', error);
+    process.exit(1);
+  }
+}
+
+// Iniciar servidor si se ejecuta directamente
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app, startServer, gracefulShutdown };
