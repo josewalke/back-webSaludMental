@@ -9,7 +9,7 @@ const path = require('path');
 require('dotenv').config();
 
 // Importar base de datos
-const database = require('./database/connection');
+const database = require('./config/database');
 
 // Importar rutas
 const authRoutes = require('./routes/auth-simple');
@@ -28,8 +28,8 @@ const app = express();
 // CONFIGURACIÓN DEL SERVIDOR
 // ========================================
 
-const PORT = process.env.PORT || 3001;
-const HOST = process.env.HOST || 'localhost';
+const PORT = process.env.PORT || 10000;
+const HOST = process.env.HOST || '0.0.0.0';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // ========================================
@@ -234,18 +234,19 @@ let server;
 async function startServer() {
   try {
     // Conectar a la base de datos
-     // console.log('🔌 Conectando a la base de datos...');
+    console.log('🔌 Conectando a la base de datos...');
+    console.log(`🌍 Entorno: ${NODE_ENV}`);
+    console.log(`🐘 DATABASE_URL: ${process.env.DATABASE_URL ? 'Configurado' : 'No configurado'}`);
     await database.connect();
     
     // Iniciar servidor
     server = app.listen(PORT, HOST, () => {
-      // console.log('🚀 Servidor backend iniciado exitosamente!');
-      // console.log(`📍 URL: http://${HOST}:${PORT}`);
-      // console.log(`🌍 Entorno: ${NODE_ENV}`);
-      // console.log(`⏰ Iniciado: ${new Date().toLocaleString('es-ES')}`);
-      // console.log('📊 Health check: http://localhost:3001/health');
-      // console.log('🔍 System info: http://localhost:3001/system/info');
-      // console.log('📚 API Docs: http://localhost:3001/api/docs');
+      console.log('🚀 Servidor backend iniciado exitosamente!');
+      console.log(`📍 URL: http://${HOST}:${PORT}`);
+      console.log(`🌍 Entorno: ${NODE_ENV}`);
+      console.log(`⏰ Iniciado: ${new Date().toLocaleString('es-ES')}`);
+      console.log(`📊 Health check: http://${HOST}:${PORT}/health`);
+      console.log(`🔍 System info: http://${HOST}:${PORT}/system/info`);
     });
 
     // Manejo de señales de terminación
