@@ -1,4 +1,4 @@
-const database = require('../database/connection');
+const database = require('../config/database');
 const bcrypt = require('bcryptjs');
 
 /**
@@ -30,15 +30,15 @@ class User {
       const hashedPassword = await bcrypt.hash(password, 12);
 
       // Crear usuario usando la estructura correcta de la base de datos
-      const result = await database.run(
+      const result = await database.query(
         `INSERT INTO users (
           email, password, name, role, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        ) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id`,
         [correo, hashedPassword, `${nombre} ${apellidos}`, 'assistant']
       );
 
       // Retornar usuario creado (sin contraseña)
-      return await this.findById(result.lastID);
+      return await this.findById(result.rows[0].id);
     } catch (error) {
       throw new Error(`Error creando usuario: ${error.message}`);
     }
@@ -49,10 +49,11 @@ class User {
    */
   static async findById(id) {
     try {
-      const user = await database.get(
-        'SELECT * FROM users WHERE id = ?',
+      const result = await database.query(
+        'SELECT * FROM users WHERE id = $1',
         [id]
       );
+      const user = result.rows[0];
 
       if (!user) return null;
 
@@ -75,10 +76,11 @@ class User {
    */
   static async findByEmail(email) {
     try {
-      const user = await database.get(
-        'SELECT * FROM users WHERE email = ?',
+      const result = await database.query(
+        'SELECT * FROM users WHERE email = $1',
         [email]
       );
+      const user = result.rows[0];
 
       if (!user) return null;
 
