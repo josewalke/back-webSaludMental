@@ -151,7 +151,14 @@ app.use(express.urlencoded({
 // Ruta de salud
 app.get('/health', async (req, res) => {
   try {
-    const dbStatus = database.isReady() ? 'connected' : 'disconnected';
+    // Verificar conexión a la base de datos
+    let dbStatus = 'disconnected';
+    try {
+      await database.query('SELECT 1 as test');
+      dbStatus = 'connected';
+    } catch (dbError) {
+      dbStatus = 'error';
+    }
     
     res.status(200).json({
       status: 'OK',
@@ -176,8 +183,8 @@ app.get('/health', async (req, res) => {
 // Ruta de información del sistema
 app.get('/system/info', async (req, res) => {
   try {
-    const stats = await database.getStats();
-    res.json({
+    // Obtener información básica del sistema
+    const systemInfo = {
       system: {
         nodeVersion: process.version,
         platform: process.platform,
@@ -186,10 +193,16 @@ app.get('/system/info', async (req, res) => {
         memory: process.memoryUsage(),
         cpu: process.cpuUsage()
       },
-      database: stats,
+      database: {
+        type: process.env.DATABASE_URL ? 'PostgreSQL' : 'SQLite',
+        status: 'connected',
+        url: process.env.DATABASE_URL ? 'Configurado' : 'No configurado'
+      },
       environment: NODE_ENV,
       timestamp: new Date().toISOString()
-    });
+    };
+    
+    res.json(systemInfo);
   } catch (error) {
     res.status(500).json({
       error: 'Error obteniendo información del sistema',
@@ -237,7 +250,11 @@ async function startServer() {
     console.log('🔌 Conectando a la base de datos...');
     console.log(`🌍 Entorno: ${NODE_ENV}`);
     console.log(`🐘 DATABASE_URL: ${process.env.DATABASE_URL ? 'Configurado' : 'No configurado'}`);
-    await database.connect();
+    
+    // Para PostgreSQL, no necesitamos connect() explícito
+    if (!process.env.DATABASE_URL) {
+      await database.connect();
+    }
     
     // Iniciar servidor
     server = app.listen(PORT, HOST, () => {
@@ -283,8 +300,10 @@ async function gracefulShutdown() {
     }
 
     // Cerrar conexión de base de datos
-    await database.close();
-    // console.log('✅ Conexión de base de datos cerrada');
+    if (database.end) {
+      await database.end();
+      console.log('✅ Conexión de base de datos cerrada');
+    }
 
     // console.log('🎉 Servidor cerrado correctamente');
     process.exit(0);
