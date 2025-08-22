@@ -15,6 +15,7 @@
     "db:migrate": "node scripts/migrate.js",
     "db:test": "node -e \"require('./scripts/migrate.js').testConnection()\"",
     "db:seed": "node scripts/seed-data.js",
+    "db:clean": "node scripts/clean-corrupted-data.js",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix"
   },
