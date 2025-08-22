@@ -272,6 +272,70 @@ app.get('/debug/users', async (req, res) => {
   }
 });
 
+// Ruta de debug temporal para cuestionarios (sin autenticación)
+app.get('/debug/questionnaires', async (req, res) => {
+  try {
+    console.log('🔍 Debug: Verificando cuestionarios en la base de datos...');
+    
+    // Verificar estructura de la tabla questionnaires
+    const tableInfo = await database.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'questionnaires' 
+      ORDER BY ordinal_position;
+    `);
+    
+    // Verificar cuestionarios existentes
+    const questionnaires = await database.query(`
+      SELECT id, type, email, status, created_at, updated_at,
+             LEFT(answers::text, 200) as answers_preview,
+             LEFT(personal_info::text, 200) as personal_info_preview
+      FROM questionnaires 
+      ORDER BY created_at DESC;
+    `);
+    
+    // Verificar si hay cuestionarios corruptos
+    let corruptedCount = 0;
+    let healthyCount = 0;
+    
+    questionnaires.rows.forEach(q => {
+      try {
+        if (q.answers_preview && q.answers_preview !== '{}' && q.answers_preview !== '') {
+          const parsed = JSON.parse(q.answers_preview);
+          if (typeof parsed === 'object' && parsed !== null) {
+            const hasCorruptedData = Object.values(parsed).some(answer => 
+              String(answer).includes('[object Object]')
+            );
+            if (hasCorruptedData) {
+              corruptedCount++;
+            } else {
+              healthyCount++;
+            }
+          }
+        }
+      } catch (error) {
+        corruptedCount++;
+      }
+    });
+    
+    res.status(200).json({
+      debug: true,
+      tableStructure: tableInfo.rows,
+      totalQuestionnaires: questionnaires.rows.length,
+      healthy: healthyCount,
+      corrupted: corruptedCount,
+      questionnaires: questionnaires.rows
+    });
+    
+  } catch (error) {
+    console.error('💥 Error en debug de cuestionarios:', error);
+    res.status(500).json({
+      error: 'Error en debug de cuestionarios',
+      message: error.message
+    });
+  }
+});
+
 // Aplicar rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/questionnaires', questionnaireRoutes);
