@@ -162,11 +162,29 @@ router.get('/questionnaires', authenticateToken, requireAdmin, async (req, res) 
       let personalInfo = {};
       let answers = {};
       
+      // 🔍 DEBUG: Log detallado de lo que viene de la BD
+      console.log(`🔍 DEBUG Cuestionario ID ${q.id}:`);
+      console.log(`   - answers (raw):`, q.answers);
+      console.log(`   - answers type:`, typeof q.answers);
+      console.log(`   - answers length:`, q.answers ? q.answers.length : 'N/A');
+      
       try {
         personalInfo = JSON.parse(q.personal_info || '{}');
         answers = JSON.parse(q.answers || '{}');
+        
+        // 🔍 DEBUG: Log después del parse
+        console.log(`   ✅ Parse exitoso:`);
+        console.log(`      - personalInfo:`, personalInfo);
+        console.log(`      - answers:`, answers);
+        console.log(`      - answers keys:`, Object.keys(answers));
+        
       } catch (e) {
         console.warn('⚠️ Error parseando JSON para ID', q.id, ':', e.message);
+        console.error('❌ DEBUG: Contenido problemático:', {
+          personal_info: q.personal_info,
+          answers: q.answers,
+          error: e.message
+        });
         personalInfo = { nombre: 'Usuario', apellidos: 'Desconocido' };
         answers = { error: 'Error parseando respuestas' };
       }
