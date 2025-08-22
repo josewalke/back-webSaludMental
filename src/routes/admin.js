@@ -141,8 +141,8 @@ router.get('/questionnaires', authenticateToken, requireAdmin, async (req, res) 
       SELECT 
         q.id,
         q.type,
-        q.personal_info,
-        q.answers,
+        q.personal_info::text as personal_info,
+        q.answers::text as answers,
         q.status,
         q.created_at,
         u.email as user_email,
