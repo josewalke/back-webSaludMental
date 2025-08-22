@@ -29,9 +29,70 @@ class Questionnaire {
         }
       }
       
+      // ✅ LIMPIEZA AGRESIVA: Asegurar que las respuestas sean strings válidos
+      const cleanAnswers = {};
+      if (answers && typeof answers === 'object') {
+        Object.entries(answers).forEach(([questionId, answer]) => {
+          let answerText = '';
+          
+          // Log para debug
+          console.log(`🔍 Procesando respuesta para pregunta ${questionId}:`, {
+            originalAnswer: answer,
+            type: typeof answer,
+            isObject: answer && typeof answer === 'object'
+          });
+          
+          if (typeof answer === 'string') {
+            answerText = answer;
+          } else if (answer && typeof answer === 'object') {
+            // Si es un objeto, extraer el texto de la respuesta
+            if (answer.text && typeof answer.text === 'string') {
+              answerText = answer.text;
+            } else if (answer.answer && typeof answer.answer === 'string') {
+              answerText = answer.answer;
+            } else if (answer.value && typeof answer.value === 'string') {
+              answerText = answer.value;
+            } else if (answer.label && typeof answer.label === 'string') {
+              answerText = answer.label;
+            } else if (answer.name && typeof answer.name === 'string') {
+              answerText = answer.name;
+            } else {
+              // Último recurso: convertir a string
+              answerText = String(answer);
+              console.warn(`⚠️ Respuesta convertida a string para pregunta ${questionId}:`, answerText);
+            }
+          } else {
+            // Convertir cualquier otro tipo a string
+            answerText = String(answer);
+            console.warn(`⚠️ Respuesta convertida a string para pregunta ${questionId}:`, answerText);
+          }
+          
+          // ✅ VALIDACIÓN FINAL: Asegurar que sea string válido
+          if (typeof answerText !== 'string') {
+            answerText = String(answerText);
+          }
+          
+          // ✅ VERIFICAR QUE NO CONTENGA [object Object]
+          if (answerText.includes('[object Object]')) {
+            console.error(`❌ ERROR: Respuesta contiene [object Object] para pregunta ${questionId}:`, answerText);
+            answerText = 'Respuesta no válida';
+          }
+          
+          cleanAnswers[questionId] = answerText;
+          
+          console.log(`✅ Respuesta procesada para pregunta ${questionId}:`, {
+            original: answer,
+            processed: answerText,
+            finalType: typeof answerText
+          });
+        });
+      }
+      
+      console.log('🧹 RESPUESTAS FINALES LIMPIAS:', cleanAnswers);
+      
       const result = await database.query(
         'INSERT INTO questionnaires (user_id, type, personal_info, answers, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id',
-        [finalUserId, type, JSON.stringify(personalInfo), JSON.stringify(answers), completed ? 'completed' : 'pending']
+        [finalUserId, type, JSON.stringify(personalInfo), JSON.stringify(cleanAnswers), completed ? 'completed' : 'pending']
       );
 
       return result.rows[0].id;
