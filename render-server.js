@@ -86,6 +86,45 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// Ruta de debug para usuarios
+app.get('/debug/users', async (req, res) => {
+  try {
+    console.log('🔍 Debug: Verificando usuarios en la base de datos...');
+    
+    // Verificar estructura de la tabla users
+    const tableInfo = await database.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'users' 
+      ORDER BY ordinal_position;
+    `);
+    
+    // Verificar usuarios existentes
+    const users = await database.query('SELECT id, email, name, role, created_at FROM users;');
+    
+    // Verificar usuario admin específico
+    const adminUser = await database.query(
+      'SELECT id, email, name, role, created_at FROM users WHERE email = $1',
+      ['admin@websaludmental.com']
+    );
+    
+    res.status(200).json({
+      debug: true,
+      tableStructure: tableInfo.rows,
+      totalUsers: users.rows.length,
+      users: users.rows,
+      adminUser: adminUser.rows[0] || null
+    });
+    
+  } catch (error) {
+    console.error('💥 Error en debug:', error);
+    res.status(500).json({
+      error: 'Error en debug',
+      message: error.message
+    });
+  }
+});
+
 // Aplicar rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/questionnaires', questionnaireRoutes);
