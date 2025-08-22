@@ -34,11 +34,11 @@ const main = async () => {
     // Ejecutar migración
     await runMigration();
     
-    // Iniciar el servidor
-    console.log('🚀 Iniciando servidor después de migración...');
+    // Iniciar el servidor simplificado
+    console.log('🚀 Iniciando servidor simplificado después de migración...');
     
-    // Importar y ejecutar el servidor
-    require('./src/server.js');
+    // Importar y ejecutar el servidor simplificado
+    require('./render-server.js');
     
   } catch (error) {
     console.error('💥 Error durante el inicio:', error);
