@@ -90,7 +90,6 @@ class User {
         name: user.name,
         password: user.password,
         role: user.role,
-        active: user.active,
         createdAt: user.created_at,
         updatedAt: user.updated_at
       };
