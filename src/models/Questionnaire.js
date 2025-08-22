@@ -1,4 +1,4 @@
-const database = require('../database/connection');
+const database = require('../config/database');
 
 /**
  * Modelo de Cuestionario que se corresponde con el frontend
@@ -29,12 +29,12 @@ class Questionnaire {
         }
       }
       
-      const result = await database.run(
-        'INSERT INTO questionnaires (user_id, type, personal_info, answers, completed) VALUES (?, ?, ?, ?, ?)',
-        [finalUserId, type, JSON.stringify(personalInfo), JSON.stringify(answers), completed ? 1 : 0]
+      const result = await database.query(
+        'INSERT INTO questionnaires (user_id, type, personal_info, answers, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id',
+        [finalUserId, type, JSON.stringify(personalInfo), JSON.stringify(answers), completed ? 'completed' : 'pending']
       );
 
-      return result.id;
+      return result.rows[0].id;
     } catch (error) {
       throw new Error(`Error creando cuestionario: ${error.message}`);
     }
@@ -45,12 +45,14 @@ class Questionnaire {
    */
   static async findById(id, userId) {
     try {
-      const questionnaire = await database.get(
-        'SELECT * FROM questionnaires WHERE id = ? AND user_id = ?',
+      const result = await database.query(
+        'SELECT * FROM questionnaires WHERE id = $1 AND user_id = $2',
         [id, userId]
       );
 
-      if (!questionnaire) return null;
+      if (result.rows.length === 0) return null;
+      
+      const questionnaire = result.rows[0];
 
       return {
         id: questionnaire.id,
@@ -88,22 +90,22 @@ class Questionnaire {
       }
 
       // Contar total
-      const countResult = await database.get(
+      const countResult = await database.query(
         `SELECT COUNT(*) as total FROM questionnaires ${whereClause}`,
         params
       );
 
-      const total = countResult.total;
+      const total = parseInt(countResult.rows[0].total);
       const totalPages = Math.ceil(total / limit);
       const offset = (page - 1) * limit;
 
       // Obtener cuestionarios paginados
-      const questionnaires = await database.all(
-        `SELECT * FROM questionnaires ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      const questionnaires = await database.query(
+        `SELECT * FROM questionnaires ${whereClause} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         [...params, limit, offset]
       );
 
-      const processedQuestionnaires = questionnaires.map(q => ({
+      const processedQuestionnaires = questionnaires.rows.map(q => ({
         id: q.id,
         type: q.type,
         personalInfo: JSON.parse(q.personal_info),
@@ -139,30 +141,30 @@ class Questionnaire {
       const updateValues = [];
 
       if (personalInfo) {
-        updateFields.push('personal_info = ?');
+        updateFields.push('personal_info = $' + (updateValues.length + 1));
         updateValues.push(JSON.stringify(personalInfo));
       }
 
       if (answers) {
-        updateFields.push('answers = ?');
+        updateFields.push('answers = $' + (updateValues.length + 1));
         updateValues.push(JSON.stringify(answers));
       }
 
       if (completed !== undefined) {
-        updateFields.push('completed = ?');
-        updateValues.push(completed ? 1 : 0);
+        updateFields.push('status = $' + (updateValues.length + 1));
+        updateValues.push(completed ? 'completed' : 'pending');
         
         if (completed) {
-          updateFields.push('completed_at = datetime("now")');
+          updateFields.push('updated_at = CURRENT_TIMESTAMP');
         } else {
-          updateFields.push('completed_at = NULL');
+          updateFields.push('updated_at = CURRENT_TIMESTAMP');
         }
       }
 
       if (updateFields.length > 0) {
         updateValues.push(id, userId);
-        await database.run(
-          `UPDATE questionnaires SET ${updateFields.join(', ')} WHERE id = ? AND user_id = ?`,
+        await database.query(
+          `UPDATE questionnaires SET ${updateFields.join(', ')} WHERE id = $${updateValues.length - 1} AND user_id = $${updateValues.length}`,
           updateValues
         );
       }
@@ -178,12 +180,12 @@ class Questionnaire {
    */
   static async delete(id, userId) {
     try {
-      const result = await database.run(
-        'DELETE FROM questionnaires WHERE id = ? AND user_id = ?',
+      const result = await database.query(
+        'DELETE FROM questionnaires WHERE id = $1 AND user_id = $2',
         [id, userId]
       );
 
-      return result.changes > 0;
+      return result.rowCount > 0;
     } catch (error) {
       throw new Error(`Error eliminando cuestionario: ${error.message}`);
     }
@@ -194,9 +196,9 @@ class Questionnaire {
    */
   static async markAsCompleted(id, userId) {
     try {
-      await database.run(
-        'UPDATE questionnaires SET completed = 1, completed_at = datetime("now") WHERE id = ? AND user_id = ?',
-        [id, userId]
+      await database.query(
+        'UPDATE questionnaires SET status = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND user_id = $2',
+        [id, userId, 'completed']
       );
 
       return await this.findById(id, userId);
@@ -215,22 +217,22 @@ class Questionnaire {
       const searchTerm = `%${query.trim()}%`;
       
       // Contar resultados
-      const countResult = await database.get(
-        'SELECT COUNT(*) as total FROM questionnaires WHERE user_id = ? AND (personal_info LIKE ? OR answers LIKE ?)',
+      const countResult = await database.query(
+        'SELECT COUNT(*) as total FROM questionnaires WHERE user_id = $1 AND (personal_info LIKE $2 OR answers LIKE $3)',
         [userId, searchTerm, searchTerm]
       );
 
-      const total = countResult.total;
+      const total = parseInt(countResult.rows[0].total);
       const totalPages = Math.ceil(total / limit);
       const offset = (page - 1) * limit;
 
       // Buscar cuestionarios
-      const questionnaires = await database.all(
-        'SELECT * FROM questionnaires WHERE user_id = ? AND (personal_info LIKE ? OR answers LIKE ?) ORDER BY created_at DESC LIMIT ? OFFSET ?',
+      const questionnaires = await database.query(
+        'SELECT * FROM questionnaires WHERE user_id = $1 AND (personal_info LIKE $2 OR answers LIKE $3) ORDER BY created_at DESC LIMIT $4 OFFSET $5',
         [userId, searchTerm, searchTerm, limit, offset]
       );
 
-      const processedQuestionnaires = questionnaires.map(q => ({
+      const processedQuestionnaires = questionnaires.rows.map(q => ({
         id: q.id,
         type: q.type,
         personalInfo: JSON.parse(q.personal_info),
@@ -264,18 +266,18 @@ class Questionnaire {
    */
   static async getUserStats(userId) {
     try {
-      const stats = await database.get(
-        'SELECT COUNT(*) as total, SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed FROM questionnaires WHERE user_id = ?',
-        [userId]
+      const stats = await database.query(
+        'SELECT COUNT(*) as total, SUM(CASE WHEN status = $2 THEN 1 ELSE 0 END) as completed FROM questionnaires WHERE user_id = $1',
+        [userId, 'completed']
       );
 
-      const typeStats = await database.all(
-        'SELECT type, COUNT(*) as total, SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed FROM questionnaires WHERE user_id = ? GROUP BY type',
-        [userId]
+      const typeStats = await database.query(
+        'SELECT type, COUNT(*) as total, SUM(CASE WHEN status = $2 THEN 1 ELSE 0 END) as completed FROM questionnaires WHERE user_id = $1 GROUP BY type',
+        [userId, 'completed']
       );
 
       const byType = {};
-      typeStats.forEach(stat => {
+      typeStats.rows.forEach(stat => {
         byType[stat.type] = {
           total: stat.total,
           completed: stat.completed,
@@ -285,10 +287,10 @@ class Questionnaire {
       });
 
       return {
-        total: stats.total,
-        completed: stats.completed,
-        pending: stats.total - stats.completed,
-        completionRate: stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0,
+        total: parseInt(stats.rows[0].total),
+        completed: parseInt(stats.rows[0].completed || 0),
+        pending: parseInt(stats.rows[0].total) - parseInt(stats.rows[0].completed || 0),
+        completionRate: parseInt(stats.rows[0].total) > 0 ? Math.round((parseInt(stats.rows[0].completed || 0) / parseInt(stats.rows[0].total)) * 100) : 0,
         byType
       };
     } catch (error) {
@@ -304,22 +306,22 @@ class Questionnaire {
     
     try {
       // Contar total
-      const countResult = await database.get(
-        'SELECT COUNT(*) as total FROM questionnaires WHERE user_id = ? AND type = ?',
+      const countResult = await database.query(
+        'SELECT COUNT(*) as total FROM questionnaires WHERE user_id = $1 AND type = $2',
         [userId, type]
       );
 
-      const total = countResult.total;
+      const total = parseInt(countResult.rows[0].total);
       const totalPages = Math.ceil(total / limit);
       const offset = (page - 1) * limit;
 
       // Obtener cuestionarios
-      const questionnaires = await database.all(
-        'SELECT * FROM questionnaires WHERE user_id = ? AND type = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+      const questionnaires = await database.query(
+        'SELECT * FROM questionnaires WHERE user_id = $1 AND type = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4',
         [userId, type, limit, offset]
       );
 
-      const processedQuestionnaires = questionnaires.map(q => ({
+      const processedQuestionnaires = questionnaires.rows.map(q => ({
         id: q.id,
         type: q.type,
         personalInfo: JSON.parse(q.personal_info),
@@ -331,9 +333,9 @@ class Questionnaire {
       }));
 
       // Estadísticas del tipo
-      const stats = await database.get(
-        'SELECT COUNT(*) as total, SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed FROM questionnaires WHERE user_id = ? AND type = ?',
-        [userId, type]
+      const stats = await database.query(
+        'SELECT COUNT(*) as total, SUM(CASE WHEN status = $3 THEN 1 ELSE 0 END) as completed FROM questionnaires WHERE user_id = $1 AND type = $2',
+        [userId, type, 'completed']
       );
 
       return {
@@ -346,10 +348,10 @@ class Questionnaire {
         },
         type,
         stats: {
-          total: stats.total,
-          completed: stats.completed,
-          pending: stats.total - stats.completed,
-          completionRate: stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0
+          total: parseInt(stats.rows[0].total),
+          completed: parseInt(stats.rows[0].completed || 0),
+          pending: parseInt(stats.rows[0].total) - parseInt(stats.rows[0].completed || 0),
+          completionRate: parseInt(stats.rows[0].total) > 0 ? Math.round((parseInt(stats.rows[0].completed || 0) / parseInt(stats.rows[0].total)) * 100) : 0
         }
       };
     } catch (error) {
