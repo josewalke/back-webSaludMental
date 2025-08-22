@@ -16,13 +16,13 @@ class Questionnaire {
       
       if (!finalUserId) {
         // Buscar el usuario administrador
-        const adminUser = await database.get(
-          'SELECT id FROM users WHERE role = ? LIMIT 1',
+        const adminResult = await database.query(
+          'SELECT id FROM users WHERE role = $1 LIMIT 1',
           ['admin']
         );
         
-        if (adminUser) {
-          finalUserId = adminUser.id;
+        if (adminResult.rows.length > 0) {
+          finalUserId = adminResult.rows[0].id;
           console.log(`👤 Cuestionario anónimo asignado al administrador con ID: ${finalUserId}`);
         } else {
           throw new Error('No se encontró un usuario administrador para asignar cuestionarios anónimos');
@@ -59,8 +59,8 @@ class Questionnaire {
         type: questionnaire.type,
         personalInfo: JSON.parse(questionnaire.personal_info),
         answers: JSON.parse(questionnaire.answers),
-        completed: Boolean(questionnaire.completed),
-        completedAt: questionnaire.completed_at,
+        completed: questionnaire.status === 'completed',
+        completedAt: questionnaire.updated_at,
         createdAt: questionnaire.created_at,
         updatedAt: questionnaire.updated_at
       };
@@ -76,17 +76,17 @@ class Questionnaire {
     const { type, completed, page = 1, limit = 10 } = options;
     
     try {
-      let whereClause = 'WHERE user_id = ?';
+      let whereClause = 'WHERE user_id = $1';
       let params = [userId];
       
       if (type) {
-        whereClause += ' AND type = ?';
+        whereClause += ' AND type = $' + (params.length + 1);
         params.push(type);
       }
       
       if (completed !== undefined) {
-        whereClause += ' AND completed = ?';
-        params.push(completed ? 1 : 0);
+        whereClause += ' AND status = $' + (params.length + 1);
+        params.push(completed ? 'completed' : 'pending');
       }
 
       // Contar total
@@ -237,8 +237,8 @@ class Questionnaire {
         type: q.type,
         personalInfo: JSON.parse(q.personal_info),
         answers: JSON.parse(q.answers),
-        completed: Boolean(q.completed),
-        completedAt: q.completed_at,
+        completed: q.status === 'completed',
+        completedAt: q.updated_at,
         createdAt: q.created_at,
         updatedAt: q.updated_at
       }));
@@ -326,8 +326,8 @@ class Questionnaire {
         type: q.type,
         personalInfo: JSON.parse(q.personal_info),
         answers: JSON.parse(q.answers),
-        completed: Boolean(q.completed),
-        completedAt: q.completed_at,
+        completed: q.status === 'completed',
+        completedAt: q.updated_at,
         createdAt: q.created_at,
         updatedAt: q.updated_at
       }));
