@@ -127,163 +127,67 @@ router.get('/profile', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // ========================================
-// OBTENER CUESTIONARIOS REALES DE LA BASE DE DATOS
+// OBTENER TODOS LOS CUESTIONARIOS (SIN FILTRO DE USUARIO)
 // ========================================
 router.get('/questionnaires', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    console.log('📊 OBTENIENDO CUESTIONARIOS REALES DE LA BASE DE DATOS');
+    console.log('📊 OBTENIENDO TODOS LOS CUESTIONARIOS (ADMIN)');
     
-    // Importar la base de datos DIRECTAMENTE
-    const sqlite3 = require('sqlite3').verbose();
-    const path = require('path');
-    const dbPath = path.join(__dirname, '../../database.sqlite');
+    // Usar la base de datos configurada (PostgreSQL en producción)
+    const database = require('../config/database');
     
-    console.log('🔌 Conectando directamente a:', dbPath);
-    
-    const database = new sqlite3.Database(dbPath, (err) => {
-      if (err) {
-        console.error('❌ Error conectando a la base de datos:', err);
-      } else {
-        console.log('✅ Conectado directamente a la base de datos');
-      }
-    });
-    
-    // CONSULTA SUPER SIMPLE Y RÁPIDA
-    console.log('🔍 Ejecutando consulta SQL SIMPLE...');
-    
-    // Primero contar cuántos hay (consulta rápida)
-    const countQuery = `SELECT COUNT(*) as total FROM questionnaires WHERE completed = 1`;
-    
-    const countResult = await new Promise((resolve, reject) => {
-      database.get(countQuery, (err, row) => {
-        if (err) {
-          console.error('❌ Error contando cuestionarios:', err);
-          reject(err);
-        } else {
-          resolve(row?.total || 0);
-        }
-      });
-    });
-    
-    console.log(`📊 Total de cuestionarios completados: ${countResult}`);
-    
-    if (countResult === 0) {
-      console.log('✅ No hay cuestionarios, devolviendo lista vacía');
-      database.close();
-      return res.json({
-        success: true,
-        total: 0,
-        pareja: { count: 0, questionnaires: [] },
-        personalidad: { count: 0, questionnaires: [] }
-      });
-    }
-    
-    // Si hay cuestionarios, obtener TODOS (sin límite)
-    const simpleQuery = `
-      SELECT id, type, personal_info, answers, completed_at, created_at
-      FROM questionnaires 
-      WHERE completed = 1
-      ORDER BY id DESC
+    // Obtener TODOS los cuestionarios sin filtrar por usuario
+    const query = `
+      SELECT 
+        q.id,
+        q.type,
+        q.personal_info,
+        q.answers,
+        q.status,
+        q.created_at,
+        u.email as user_email,
+        u.name as user_name
+      FROM questionnaires q
+      LEFT JOIN users u ON q.user_id = u.id
+      ORDER BY q.created_at DESC
     `;
     
-    // Definir las preguntas del cuestionario de pareja (IDs empiezan en 0)
-    const parejaQuestions = [
-      "¿Qué buscas principalmente en una relación?",
-      "¿Cómo prefieres pasar tiempo con tu pareja?",
-      "¿Qué valoras más en una persona?",
-      "¿Cómo manejas los conflictos en una relación?",
-      "¿Qué te gustaría mejorar en ti mismo para una relación?",
-      "¿Qué tan importante es la comunicación en una relación para ti?",
-      "¿Cómo te sientes cuando tu pareja necesita espacio personal?",
-      "¿Qué tan importante es la confianza en una relación?",
-      "¿Cómo reaccionas cuando tu pareja tiene éxito?",
-      "¿Qué tan importante es la compatibilidad sexual?",
-      "¿Cómo manejas los celos en una relación?",
-      "¿Qué tan importante es compartir valores en una relación?",
-      "¿Cómo te sientes cuando tu pareja tiene amigos del sexo opuesto?",
-      "¿Qué tan importante es la independencia financiera en una relación?",
-      "¿Cómo manejas las diferencias de opinión con tu pareja?",
-      "¿Qué tan importante es la compatibilidad de horarios y estilo de vida?",
-      "¿Cómo te gustaría que sea tu relación ideal?"
-    ];
+    const result = await database.query(query);
+    const questionnaires = result.rows || [];
     
-    const questionnaires = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        console.log('⚠️ Timeout alcanzado, devolviendo datos limitados');
-        resolve([]); // No fallar, devolver lista vacía
-      }, 3000); // Solo 3 segundos
+    console.log(`📊 Total de cuestionarios encontrados: ${questionnaires.length}`);
+    
+    // Procesar cada cuestionario
+    const processedQuestionnaires = questionnaires.map(q => {
+      let personalInfo = {};
+      let answers = {};
       
-      database.all(simpleQuery, (err, rows) => {
-        clearTimeout(timeout);
-        
-        if (err) {
-          console.error('❌ Error en consulta SQL:', err);
-          resolve([]); // No fallar, devolver lista vacía
-        } else {
-          console.log(`📊 Consulta completada. Filas obtenidas: ${rows?.length || 0}`);
-          
-          const results = (rows || []).map(row => {
-            let personalInfo = {};
-            let answers = {};
-            
-            try {
-              personalInfo = JSON.parse(row.personal_info || '{}');
-              answers = JSON.parse(row.answers || '{}');
-            } catch (e) {
-              console.warn('⚠️ Error parseando JSON para ID', row.id, ':', e.message);
-              personalInfo = { nombre: 'Usuario', apellidos: 'Desconocido' };
-              answers = { error: 'Error parseando respuestas' };
-            }
-            
-            // Agregar las preguntas reales si es cuestionario de pareja
-            let questionsWithAnswers = {};
-            if (row.type === 'pareja') {
-              Object.entries(answers).forEach(([questionId, answer]) => {
-                const questionNumber = parseInt(questionId);
-                if (questionNumber >= 0 && questionNumber < parejaQuestions.length) {
-                  questionsWithAnswers[questionId] = {
-                    question: parejaQuestions[questionNumber],
-                    answer: answer
-                  };
-                } else {
-                  questionsWithAnswers[questionId] = {
-                    question: `Pregunta ${questionNumber + 1}`,
-                    answer: answer
-                  };
-                }
-              });
-            } else {
-              // Para otros tipos de cuestionarios, mantener formato original
-              questionsWithAnswers = answers;
-            }
-            
-            // Manejar fechas correctamente
-            let completedAt = row.completed_at;
-            if (!completedAt || completedAt === '') {
-              completedAt = row.created_at; // Usar created_at si completed_at está vacío
-            }
-            
-            return {
-              id: row.id,
-              type: row.type,
-              personalInfo: personalInfo,
-              answers: questionsWithAnswers,
-              completed: true,
-              completedAt: completedAt,
-              createdAt: row.created_at
-            };
-          });
-          
-          resolve(results);
-        }
-      });
+      try {
+        personalInfo = JSON.parse(q.personal_info || '{}');
+        answers = JSON.parse(q.answers || '{}');
+      } catch (e) {
+        console.warn('⚠️ Error parseando JSON para ID', q.id, ':', e.message);
+        personalInfo = { nombre: 'Usuario', apellidos: 'Desconocido' };
+        answers = { error: 'Error parseando respuestas' };
+      }
+      
+      return {
+        id: q.id,
+        type: q.type,
+        status: q.status,
+        personalInfo: personalInfo,
+        answers: answers,
+        userEmail: q.user_email,
+        userName: q.user_name,
+        createdAt: q.created_at
+      };
     });
     
     // Separar por tipo
-    const parejaQuestionnaires = questionnaires.filter(q => q.type === 'pareja');
-    const personalidadQuestionnaires = questionnaires.filter(q => q.type === 'personalidad');
+    const parejaQuestionnaires = processedQuestionnaires.filter(q => q.type === 'pareja');
+    const personalidadQuestionnaires = processedQuestionnaires.filter(q => q.type === 'personalidad');
     
-    const result = {
+    const response = {
       success: true,
       total: questionnaires.length,
       pareja: {
@@ -297,46 +201,20 @@ router.get('/questionnaires', authenticateToken, requireAdmin, async (req, res) 
     };
     
     console.log('✅ Cuestionarios obtenidos exitosamente:', {
-      total: result.total,
-      pareja: result.pareja.count,
-      personalidad: result.pareja.count
+      total: response.total,
+      pareja: response.pareja.count,
+      personalidad: response.personalidad.count
     });
     
-    res.json(result);
-    
-    // Cerrar conexión
-    database.close();
+    res.json(response);
     
   } catch (error) {
     console.error('❌ Error obteniendo cuestionarios:', error);
-    
-    // Si hay error, devolver datos vacíos en lugar de fallar
-    res.json({
-      success: true,
-      total: 0,
-      pareja: { count: 0, questionnaires: [] },
-      personalidad: { count: 0, questionnaires: [] },
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
       error: error.message
     });
-    
-    // Cerrar conexión en caso de error
-    if (typeof database !== 'undefined' && database) {
-      try {
-        database.close();
-      } catch (e) {
-        console.log('⚠️ Error cerrando conexión:', e.message);
-      }
-    }
-  } finally {
-    // Asegurar que la conexión se cierre siempre
-    if (typeof database !== 'undefined' && database) {
-      try {
-        database.close();
-        console.log('🔌 Conexión cerrada en finally');
-      } catch (e) {
-        console.log('⚠️ Error cerrando conexión en finally:', e.message);
-      }
-    }
   }
 });
 
