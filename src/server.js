@@ -92,7 +92,7 @@ const limiter = rateLimit({
 const speedLimiter = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutos
   delayAfter: 50, // permitir 50 requests por 15 minutos sin delay
-  delayMs: 500, // agregar 500ms de delay por request después del límite
+  delayMs: () => 500, // agregar 500ms de delay por request después del límite
   maxDelayMs: 20000 // máximo 20 segundos de delay
 });
 
@@ -252,7 +252,8 @@ async function startServer() {
     console.log(`🐘 DATABASE_URL: ${process.env.DATABASE_URL ? 'Configurado' : 'No configurado'}`);
     
     // Para PostgreSQL, no necesitamos connect() explícito
-    if (!process.env.DATABASE_URL) {
+    // Solo conectar si es SQLite (desarrollo)
+    if (NODE_ENV === 'development' && !process.env.DATABASE_URL) {
       await database.connect();
     }
     
@@ -300,7 +301,7 @@ async function gracefulShutdown() {
     }
 
     // Cerrar conexión de base de datos
-    if (database.end) {
+    if (database.end && typeof database.end === 'function') {
       await database.end();
       console.log('✅ Conexión de base de datos cerrada');
     }
