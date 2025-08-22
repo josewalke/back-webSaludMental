@@ -236,7 +236,7 @@ app.get('/debug/db-status', async (req, res) => {
 // Ruta de debug para usuarios
 app.get('/debug/users', async (req, res) => {
   try {
-    console.log('🔍 Debug: Verificando usuarios en la base de datos...');
+    console.log('🔍 Debug: Verificando usuarios y cuestionarios en la base de datos...');
     
     // Verificar estructura de la tabla users
     const tableInfo = await database.query(`
@@ -255,12 +255,60 @@ app.get('/debug/users', async (req, res) => {
       ['admin@websaludmental.com']
     );
     
+    // Verificar cuestionarios
+    let questionnairesInfo = {};
+    try {
+      const questionnairesCount = await database.query('SELECT COUNT(*) as count FROM questionnaires');
+      const questionnaires = await database.query(`
+        SELECT id, type, email, status, created_at, updated_at,
+               LEFT(answers::text, 200) as answers_preview,
+               LEFT(personal_info::text, 200) as personal_info_preview
+        FROM questionnaires 
+        ORDER BY created_at DESC
+        LIMIT 5
+      `);
+      
+      // Verificar si hay cuestionarios corruptos
+      let corruptedCount = 0;
+      let healthyCount = 0;
+      
+      questionnaires.rows.forEach(q => {
+        try {
+          if (q.answers_preview && q.answers_preview !== '{}' && q.answers_preview !== '') {
+            const parsed = JSON.parse(q.answers_preview);
+            if (typeof parsed === 'object' && parsed !== null) {
+              const hasCorruptedData = Object.values(parsed).some(answer => 
+                String(answer).includes('[object Object]')
+              );
+              if (hasCorruptedData) {
+                corruptedCount++;
+              } else {
+                healthyCount++;
+              }
+            }
+          }
+        } catch (error) {
+          corruptedCount++;
+        }
+      });
+      
+      questionnairesInfo = {
+        total: parseInt(questionnairesCount.rows[0].count),
+        healthy: healthyCount,
+        corrupted: corruptedCount,
+        sample: questionnaires.rows
+      };
+    } catch (error) {
+      questionnairesInfo = { error: error.message };
+    }
+    
     res.status(200).json({
       debug: true,
       tableStructure: tableInfo.rows,
       totalUsers: users.rows.length,
       users: users.rows,
-      adminUser: adminUser.rows[0] || null
+      adminUser: adminUser.rows[0] || null,
+      questionnaires: questionnairesInfo
     });
     
   } catch (error) {
