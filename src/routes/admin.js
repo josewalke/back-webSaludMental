@@ -344,4 +344,147 @@ router.delete('/questionnaires/:id', authenticateToken, requireAdmin, async (req
   }
 });
 
+// ========================================
+// DEBUG PÚBLICO - VER ESTADO DE LA BD
+// ========================================
+router.get('/debug/database-status', async (req, res) => {
+  try {
+    console.log('🔍 DEBUG: Verificando estado de la base de datos...');
+    
+    const database = require('../config/database');
+    
+    // 1. Verificar conexión
+    const connectionTest = await database.query('SELECT 1 as test, NOW() as timestamp');
+    console.log('✅ Conexión a BD exitosa');
+    
+    // 2. Verificar tablas existentes
+    const tablesQuery = `
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `;
+    const tables = await database.query(tablesQuery);
+    console.log('📋 Tablas encontradas:', tables.rows.map(t => t.table_name));
+    
+    // 3. Verificar usuarios
+    let usersCount = 0;
+    let adminUser = null;
+    try {
+      const usersResult = await database.query('SELECT COUNT(*) as count FROM users');
+      usersCount = parseInt(usersResult.rows[0].count);
+      
+      if (usersCount > 0) {
+        const adminResult = await database.query('SELECT id, email, role FROM users WHERE role = $1', ['admin']);
+        if (adminResult.rows.length > 0) {
+          adminUser = adminResult.rows[0];
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ Error verificando usuarios:', error.message);
+    }
+    
+    // 4. Verificar cuestionarios
+    let questionnairesCount = 0;
+    let questionnairesSample = [];
+    let corruptedCount = 0;
+    
+    try {
+      const questionnairesResult = await database.query('SELECT COUNT(*) as count FROM questionnaires');
+      questionnairesCount = parseInt(questionnairesResult.rows[0].count);
+      
+      if (questionnairesCount > 0) {
+        // Obtener muestra de cuestionarios
+        const sampleResult = await database.query(`
+          SELECT id, type, email, status, created_at, 
+                 CASE 
+                   WHEN answers IS NULL THEN 'NULL'
+                   WHEN answers = '' THEN 'EMPTY'
+                   WHEN answers = '{}' THEN 'EMPTY_OBJECT'
+                   ELSE 'HAS_DATA'
+                 END as answers_status,
+                 LEFT(answers::text, 100) as answers_preview
+          FROM questionnaires 
+          ORDER BY created_at DESC 
+          LIMIT 5
+        `);
+        questionnairesSample = sampleResult.rows;
+        
+        // Verificar cuestionarios corruptos
+        const allQuestionnaires = await database.query('SELECT id, answers FROM questionnaires');
+        allQuestionnaires.rows.forEach(row => {
+          try {
+            if (row.answers && row.answers !== '{}' && row.answers !== '') {
+              const parsed = JSON.parse(row.answers);
+              if (typeof parsed === 'object' && parsed !== null) {
+                const hasCorruptedData = Object.values(parsed).some(answer => 
+                  String(answer).includes('[object Object]')
+                );
+                if (hasCorruptedData) {
+                  corruptedCount++;
+                }
+              }
+            }
+          } catch (error) {
+            corruptedCount++;
+          }
+        });
+      }
+    } catch (error) {
+      console.log('⚠️ Error verificando cuestionarios:', error.message);
+    }
+    
+    // 5. Resumen del estado
+    const status = {
+      timestamp: new Date().toISOString(),
+      database: {
+        connection: 'OK',
+        tables: tables.rows.map(t => t.table_name)
+      },
+      users: {
+        total: usersCount,
+        admin: adminUser ? { id: adminUser.id, email: adminUser.email } : null
+      },
+      questionnaires: {
+        total: questionnairesCount,
+        corrupted: corruptedCount,
+        healthy: questionnairesCount - corruptedCount,
+        sample: questionnairesSample
+      },
+      recommendations: []
+    };
+    
+    // Agregar recomendaciones
+    if (corruptedCount > 0) {
+      status.recommendations.push(`Limpiar ${corruptedCount} cuestionarios corruptos`);
+    }
+    if (questionnairesCount === 0) {
+      status.recommendations.push('No hay cuestionarios. Crear algunos para probar');
+    }
+    if (usersCount === 0) {
+      status.recommendations.push('No hay usuarios. Ejecutar seed-data');
+    }
+    
+    console.log('📊 Estado de BD:', {
+      usuarios: usersCount,
+      cuestionarios: questionnairesCount,
+      corruptos: corruptedCount
+    });
+    
+    res.json({
+      success: true,
+      message: 'Estado de la base de datos',
+      data: status
+    });
+    
+  } catch (error) {
+    console.error('❌ Error en debug de BD:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
