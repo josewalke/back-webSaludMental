@@ -86,6 +86,115 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// Ruta de debug simple para verificar BD
+app.get('/debug/db-status', async (req, res) => {
+  try {
+    console.log('🔍 DEBUG: Verificando estado de la base de datos...');
+    
+    // 1. Verificar conexión
+    const connectionTest = await database.query('SELECT 1 as test, NOW() as timestamp');
+    console.log('✅ Conexión a BD exitosa');
+    
+    // 2. Verificar tablas existentes
+    const tablesQuery = `
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `;
+    const tables = await database.query(tablesQuery);
+    console.log('📋 Tablas encontradas:', tables.rows.map(t => t.table_name));
+    
+    // 3. Verificar usuarios
+    let usersCount = 0;
+    let adminUser = null;
+    try {
+      const usersResult = await database.query('SELECT COUNT(*) as count FROM users');
+      usersCount = parseInt(usersResult.rows[0].count);
+      
+      if (usersCount > 0) {
+        const adminResult = await database.query('SELECT id, email, role FROM users WHERE role = $1', ['admin']);
+        if (adminResult.rows.length > 0) {
+          adminUser = adminResult.rows[0];
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ Error verificando usuarios:', error.message);
+    }
+    
+    // 4. Verificar cuestionarios
+    let questionnairesCount = 0;
+    let corruptedCount = 0;
+    
+    try {
+      const questionnairesResult = await database.query('SELECT COUNT(*) as count FROM questionnaires');
+      questionnairesCount = parseInt(questionnairesResult.rows[0].count);
+      
+      if (questionnairesCount > 0) {
+        // Verificar cuestionarios corruptos
+        const allQuestionnaires = await database.query('SELECT id, answers FROM questionnaires LIMIT 10');
+        allQuestionnaires.rows.forEach(row => {
+          try {
+            if (row.answers && row.answers !== '{}' && row.answers !== '') {
+              const parsed = JSON.parse(row.answers);
+              if (typeof parsed === 'object' && parsed !== null) {
+                const hasCorruptedData = Object.values(parsed).some(answer => 
+                  String(answer).includes('[object Object]')
+                );
+                if (hasCorruptedData) {
+                  corruptedCount++;
+                }
+              }
+            }
+          } catch (error) {
+            corruptedCount++;
+          }
+        });
+      }
+    } catch (error) {
+      console.log('⚠️ Error verificando cuestionarios:', error.message);
+    }
+    
+    // 5. Resumen del estado
+    const status = {
+      timestamp: new Date().toISOString(),
+      database: {
+        connection: 'OK',
+        tables: tables.rows.map(t => t.table_name)
+      },
+      users: {
+        total: usersCount,
+        admin: adminUser ? { id: adminUser.id, email: adminUser.email } : null
+      },
+      questionnaires: {
+        total: questionnairesCount,
+        corrupted: corruptedCount,
+        healthy: questionnairesCount - corruptedCount
+      }
+    };
+    
+    console.log('📊 Estado de BD:', {
+      usuarios: usersCount,
+      cuestionarios: questionnairesCount,
+      corruptos: corruptedCount
+    });
+    
+    res.json({
+      success: true,
+      message: 'Estado de la base de datos',
+      data: status
+    });
+    
+  } catch (error) {
+    console.error('❌ Error en debug de BD:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: error.message
+    });
+  }
+});
+
 // Ruta de debug para usuarios
 app.get('/debug/users', async (req, res) => {
   try {
