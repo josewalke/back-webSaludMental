@@ -65,18 +65,56 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.get('/health', async (req, res) => {
   try {
     let dbStatus = 'disconnected';
+    let dbInfo = {};
+    
     try {
       await database.query('SELECT 1 as test');
       dbStatus = 'connected';
+      
+      // Obtener información básica de la BD
+      try {
+        // Verificar tablas
+        const tablesQuery = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`;
+        const tables = await database.query(tablesQuery);
+        
+        // Verificar usuarios
+        let usersCount = 0;
+        try {
+          const usersResult = await database.query('SELECT COUNT(*) as count FROM users');
+          usersCount = parseInt(usersResult.rows[0].count);
+        } catch (e) {
+          usersCount = 0;
+        }
+        
+        // Verificar cuestionarios
+        let questionnairesCount = 0;
+        try {
+          const questionnairesResult = await database.query('SELECT COUNT(*) as count FROM questionnaires');
+          questionnairesCount = parseInt(questionnairesResult.rows[0].count);
+        } catch (e) {
+          questionnairesCount = 0;
+        }
+        
+        dbInfo = {
+          tables: tables.rows.map(t => t.table_name),
+          users: usersCount,
+          questionnaires: questionnairesCount
+        };
+      } catch (dbInfoError) {
+        dbInfo = { error: dbInfoError.message };
+      }
+      
     } catch (dbError) {
       dbStatus = 'error';
+      dbInfo = { error: dbError.message };
     }
     
     res.status(200).json({
       status: 'OK',
       timestamp: new Date().toISOString(),
       environment: NODE_ENV,
-      database: dbStatus
+      database: dbStatus,
+      dbInfo: dbInfo
     });
   } catch (error) {
     res.status(500).json({
