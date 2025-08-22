@@ -76,13 +76,34 @@ class User {
    */
   static async findByEmail(email) {
     try {
+      console.log('🔍 Buscando usuario por email:', email);
+      
       const result = await database.query(
         'SELECT * FROM users WHERE email = $1',
         [email]
       );
+      
+      console.log('📊 Resultado de consulta:', {
+        rowCount: result.rowCount,
+        rows: result.rows,
+        firstRow: result.rows[0]
+      });
+      
       const user = result.rows[0];
 
-      if (!user) return null;
+      if (!user) {
+        console.log('❌ Usuario no encontrado en BD');
+        return null;
+      }
+
+      console.log('✅ Usuario encontrado en BD:', {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        hasPassword: !!user.password,
+        passwordLength: user.password ? user.password.length : 0
+      });
 
       return {
         id: user.id,
@@ -94,6 +115,7 @@ class User {
         updatedAt: user.updated_at
       };
     } catch (error) {
+      console.error('💥 Error en findByEmail:', error);
       throw new Error(`Error obteniendo usuario por email: ${error.message}`);
     }
   }
