@@ -292,4 +292,56 @@ router.delete('/clean-corrupted-data', authenticateToken, requireAdmin, async (r
   }
 });
 
+// ========================================
+// ELIMINAR CUESTIONARIO INDIVIDUAL
+// ========================================
+router.delete('/questionnaires/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🗑️ ADMIN SOLICITANDO ELIMINAR CUESTIONARIO ID: ${id}`);
+    
+    const database = require('../config/database');
+    
+    // 1. Verificar que el cuestionario existe
+    const existingQuestionnaire = await database.query(
+      'SELECT id, type, email FROM questionnaires WHERE id = $1',
+      [id]
+    );
+    
+    if (existingQuestionnaire.rows.length === 0) {
+      console.log(`❌ Cuestionario ${id} no encontrado`);
+      return res.status(404).json({
+        success: false,
+        message: 'Cuestionario no encontrado'
+      });
+    }
+    
+    const questionnaire = existingQuestionnaire.rows[0];
+    console.log(`📝 Cuestionario a eliminar: ID ${id}, Tipo: ${questionnaire.type}, Email: ${questionnaire.email}`);
+    
+    // 2. Eliminar el cuestionario
+    await database.query('DELETE FROM questionnaires WHERE id = $1', [id]);
+    console.log(`✅ Cuestionario ${id} eliminado exitosamente`);
+    
+    // 3. Verificar resultado
+    const remainingQuestionnaires = await database.query('SELECT COUNT(*) as count FROM questionnaires');
+    console.log(`📊 Cuestionarios restantes: ${remainingQuestionnaires.rows[0].count}`);
+    
+    res.json({
+      success: true,
+      message: 'Cuestionario eliminado exitosamente',
+      deletedId: parseInt(id),
+      remaining: parseInt(remainingQuestionnaires.rows[0].count)
+    });
+    
+  } catch (error) {
+    console.error('❌ Error eliminando cuestionario:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
