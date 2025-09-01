@@ -104,11 +104,18 @@ class Questionnaire {
   /**
    * Obtener cuestionario por ID
    */
-  static async findById(id, userId) {
+  static async findById(id, userId = null) {
     try {
+      let query = 'SELECT * FROM questionnaires WHERE id = $1';
+      let params = [id];
+      if (userId !== null && userId !== undefined) {
+        query += ' AND user_id = $2';
+        params.push(userId);
+      }
+
       const result = await database.query(
-        'SELECT * FROM questionnaires WHERE id = $1 AND user_id = $2',
-        [id, userId]
+        query,
+        params
       );
 
       if (result.rows.length === 0) return null;
@@ -171,8 +178,8 @@ class Questionnaire {
         type: q.type,
         personalInfo: JSON.parse(q.personal_info),
         answers: JSON.parse(q.answers),
-        completed: Boolean(q.completed),
-        completedAt: q.completed_at,
+        completed: q.status === 'completed',
+        completedAt: q.updated_at,
         createdAt: q.created_at,
         updatedAt: q.updated_at
       }));

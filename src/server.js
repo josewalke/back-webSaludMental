@@ -15,6 +15,7 @@ const database = require('./config/database');
 const authRoutes = require('./routes/auth-simple');
 const questionnaireRoutes = require('./routes/questionnaires');
 const adminRoutes = require('./routes/admin');
+const contactRoutes = require('./routes/contact');
 
 // Importar middlewares
 // const errorHandler = require('./middleware/errorHandler');
@@ -46,9 +47,9 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'", "https:"],
-      objectSrc: ["'none"],
+      objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
-      frameSrc: ["'none"]
+      frameSrc: ["'none'"]
     },
   },
   hsts: {
@@ -60,7 +61,18 @@ app.use(helmet({
 
 // CORS configurado
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://localhost:5177', 'http://localhost:5178'],
+  origin: (origin, callback) => {
+    const whitelist = [
+      'http://localhost:3000',
+      'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://localhost:5177', 'http://localhost:5178',
+      process.env.FRONTEND_URL,
+      process.env.FRONTEND_URL_ALT
+    ].filter(Boolean);
+    if (!origin || whitelist.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: [
@@ -215,6 +227,7 @@ app.get('/system/info', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/questionnaires', questionnaireRoutes);
+app.use('/api/contact', contactRoutes);
 // app.use('/api/analytics', authMiddleware, analyticsRoutes);
 // app.use('/api/system', authMiddleware, systemRoutes);
 
@@ -253,8 +266,10 @@ async function startServer() {
     
     // Para PostgreSQL, no necesitamos connect() explícito
     // Solo conectar si es SQLite (desarrollo)
-    if (NODE_ENV === 'development' && !process.env.DATABASE_URL) {
+    if (NODE_ENV === 'development') {
+      console.log('🔗 Conectando a SQLite...');
       await database.connect();
+      console.log('✅ SQLite conectado exitosamente');
     }
     
     // Iniciar servidor
@@ -273,17 +288,17 @@ async function startServer() {
 
     // Manejo de errores no capturados
     process.on('uncaughtException', (error) => {
-      // console.error('💥 Error no capturado:', error);
+      console.error('💥 Error no capturado:', error);
       gracefulShutdown();
     });
 
     process.on('unhandledRejection', (reason, promise) => {
-      // console.error('💥 Promesa rechazada no manejada:', reason);
+      console.error('💥 Promesa rechazada no manejada:', reason);
       gracefulShutdown();
     });
 
   } catch (error) {
-    // console.error('💥 Error iniciando servidor:', error);
+    console.error('💥 Error iniciando servidor:', error);
     process.exit(1);
   }
 }

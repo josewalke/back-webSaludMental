@@ -4,7 +4,26 @@ const path = require('path');
 let pool;
 
 // Configuración para PostgreSQL (producción) vs SQLite (desarrollo)
-if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL) {
+// Usar SQLite si:
+// 1. NODE_ENV es explícitamente 'development', O
+// 2. No hay DATABASE_URL configurado, O  
+// 3. DATABASE_URL contiene 'localhost' o '127.0.0.1' (desarrollo local)
+const isDevelopment = process.env.NODE_ENV === 'development' || 
+                     !process.env.DATABASE_URL || 
+                     (process.env.DATABASE_URL && (
+                       process.env.DATABASE_URL.includes('localhost') || 
+                       process.env.DATABASE_URL.includes('127.0.0.1') ||
+                       process.env.DATABASE_URL.includes('sqlite')
+                     ));
+
+console.log('🔍 Detección de entorno:', {
+  NODE_ENV: process.env.NODE_ENV,
+  hasDATABASE_URL: !!process.env.DATABASE_URL,
+  DATABASE_URL_preview: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 20) + '...' : 'No configurado',
+  isDevelopment: isDevelopment
+});
+
+if (!isDevelopment) {
   // PostgreSQL en producción (Render)
   console.log('🐘 Conectando a PostgreSQL...');
   pool = new Pool({
