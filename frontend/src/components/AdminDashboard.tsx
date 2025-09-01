@@ -80,12 +80,20 @@ const AdminDashboard: React.FC = () => {
         return;
       }
 
-      const response = await fetch(buildApiUrl('/api/admin/questionnaires'), {
+      const url = buildApiUrl('/api/admin/questionnaires');
+      console.log('🔍 DEBUG: URL de la petición:', url);
+      console.log('🔍 DEBUG: Token encontrado:', token ? 'SÍ' : 'NO');
+      console.log('🔍 DEBUG: Token (primeros 20 chars):', token.substring(0, 20) + '...');
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
+      
+      console.log('🔍 DEBUG: Response status:', response.status);
+      console.log('🔍 DEBUG: Response ok:', response.ok);
 
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -93,8 +101,33 @@ const AdminDashboard: React.FC = () => {
 
       const data = await response.json();
       setDashboardData(data);
+      
+      // 🔍 LOGS DETALLADOS PARA DEBUGGING
       console.log('📊 Datos del dashboard cargados:', data);
+      console.log('🔍 Estructura de datos:', {
+        success: data.success,
+        total: data.total,
+        pareja_count: data.pareja?.count,
+        personalidad_count: data.personalidad?.count
+      });
+      
       console.log('🔍 Primer cuestionario de pareja:', data.pareja?.questionnaires?.[0]);
+      console.log('🔍 Primer cuestionario de personalidad:', data.personalidad?.questionnaires?.[0]);
+      
+      // Logs detallados de personalInfo
+      if (data.pareja?.questionnaires?.[0]) {
+        const firstPareja = data.pareja.questionnaires[0];
+        console.log('🔍 DEBUG Primer cuestionario pareja:');
+        console.log('   - ID:', firstPareja.id);
+        console.log('   - Type:', firstPareja.type);
+        console.log('   - personalInfo:', firstPareja.personalInfo);
+        console.log('   - personalInfo.nombre:', firstPareja.personalInfo?.nombre);
+        console.log('   - personalInfo.apellidos:', firstPareja.personalInfo?.apellidos);
+        console.log('   - personalInfo.edad:', firstPareja.personalInfo?.edad);
+        console.log('   - personalInfo.correo:', firstPareja.personalInfo?.correo);
+        console.log('   - answers:', firstPareja.answers);
+        console.log('   - answers keys:', Object.keys(firstPareja.answers || {}));
+      }
       } catch (err) {
         // console.error('❌ Error cargando dashboard:', err);
       setError(err instanceof Error ? err.message : 'Error desconocido');
