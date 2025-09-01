@@ -132,9 +132,13 @@ router.get('/profile', authenticateToken, requireAdmin, async (req, res) => {
 router.get('/questionnaires', authenticateToken, requireAdmin, async (req, res) => {
   try {
     console.log('📊 OBTENIENDO TODOS LOS CUESTIONARIOS (ADMIN)');
+    console.log('🔍 DEBUG: Headers recibidos:', req.headers);
+    console.log('🔍 DEBUG: User ID del token:', req.user?.userId);
+    console.log('🔍 DEBUG: User role del token:', req.user?.userRole);
     
     // Usar la base de datos configurada (PostgreSQL en producción)
     const database = require('../config/database');
+    console.log('🔍 DEBUG: Base de datos configurada:', database ? 'OK' : 'ERROR');
     
     // Obtener TODOS los cuestionarios sin filtrar por usuario
     const query = `
@@ -152,10 +156,17 @@ router.get('/questionnaires', authenticateToken, requireAdmin, async (req, res) 
       ORDER BY q.created_at DESC
     `;
     
+    console.log('🔍 DEBUG: Ejecutando consulta SQL...');
     const result = await database.query(query);
     const questionnaires = result.rows || [];
     
     console.log(`📊 Total de cuestionarios encontrados: ${questionnaires.length}`);
+    console.log(`🔍 DEBUG: Resultado de la consulta:`, {
+      rowCount: result.rowCount,
+      rowsLength: questionnaires.length,
+      hasRows: questionnaires.length > 0
+    });
+    console.log(`🔍 DEBUG: Primer cuestionario raw:`, questionnaires[0]);
     
     // Procesar cada cuestionario
     const processedQuestionnaires = questionnaires.map(q => {
@@ -164,9 +175,13 @@ router.get('/questionnaires', authenticateToken, requireAdmin, async (req, res) 
       
       // 🔍 DEBUG: Log detallado de lo que viene de la BD
       console.log(`🔍 DEBUG Cuestionario ID ${q.id}:`);
+      console.log(`   - personal_info (raw):`, q.personal_info);
+      console.log(`   - personal_info type:`, typeof q.personal_info);
       console.log(`   - answers (raw):`, q.answers);
       console.log(`   - answers type:`, typeof q.answers);
       console.log(`   - answers length:`, q.answers ? q.answers.length : 'N/A');
+      console.log(`   - user_email:`, q.user_email);
+      console.log(`   - user_name:`, q.user_name);
       
       try {
         personalInfo = JSON.parse(q.personal_info || '{}');
@@ -175,8 +190,13 @@ router.get('/questionnaires', authenticateToken, requireAdmin, async (req, res) 
         // 🔍 DEBUG: Log después del parse
         console.log(`   ✅ Parse exitoso:`);
         console.log(`      - personalInfo:`, personalInfo);
+        console.log(`      - personalInfo.nombre:`, personalInfo.nombre);
+        console.log(`      - personalInfo.apellidos:`, personalInfo.apellidos);
+        console.log(`      - personalInfo.edad:`, personalInfo.edad);
+        console.log(`      - personalInfo.correo:`, personalInfo.correo);
         console.log(`      - answers:`, answers);
         console.log(`      - answers keys:`, Object.keys(answers));
+        console.log(`      - answers count:`, Object.keys(answers).length);
         
       } catch (e) {
         console.warn('⚠️ Error parseando JSON para ID', q.id, ':', e.message);
@@ -205,6 +225,12 @@ router.get('/questionnaires', authenticateToken, requireAdmin, async (req, res) 
     const parejaQuestionnaires = processedQuestionnaires.filter(q => q.type === 'pareja');
     const personalidadQuestionnaires = processedQuestionnaires.filter(q => q.type === 'personalidad');
     
+    console.log(`📊 Procesamiento completado:`);
+    console.log(`   - Total procesados: ${processedQuestionnaires.length}`);
+    console.log(`   - Pareja: ${parejaQuestionnaires.length}`);
+    console.log(`   - Personalidad: ${personalidadQuestionnaires.length}`);
+    console.log(`🔍 DEBUG: Primer cuestionario procesado:`, processedQuestionnaires[0]);
+    
     const response = {
       success: true,
       total: questionnaires.length,
@@ -217,6 +243,13 @@ router.get('/questionnaires', authenticateToken, requireAdmin, async (req, res) 
         questionnaires: personalidadQuestionnaires
       }
     };
+    
+    console.log(`📤 Enviando respuesta al frontend:`, {
+      success: response.success,
+      total: response.total,
+      pareja_count: response.pareja.count,
+      personalidad_count: response.personalidad.count
+    });
     
     console.log('✅ Cuestionarios obtenidos exitosamente:', {
       total: response.total,
