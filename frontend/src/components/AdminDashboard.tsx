@@ -81,9 +81,9 @@ const AdminDashboard: React.FC = () => {
       }
 
       const url = buildApiUrl('/api/admin/questionnaires');
-      console.log('🔍 DEBUG: URL de la petición:', url);
-      console.log('🔍 DEBUG: Token encontrado:', token ? 'SÍ' : 'NO');
-      console.log('🔍 DEBUG: Token (primeros 20 chars):', token.substring(0, 20) + '...');
+      console.log('🔍 DEBUG FRONTEND: URL de la petición:', url);
+      console.log('🔍 DEBUG FRONTEND: Token encontrado:', token ? 'SÍ' : 'NO');
+      console.log('🔍 DEBUG FRONTEND: Token (primeros 20 chars):', token.substring(0, 20) + '...');
 
       const response = await fetch(url, {
         headers: {
@@ -92,8 +92,8 @@ const AdminDashboard: React.FC = () => {
         }
       });
       
-      console.log('🔍 DEBUG: Response status:', response.status);
-      console.log('🔍 DEBUG: Response ok:', response.ok);
+      console.log('🔍 DEBUG FRONTEND: Response status:', response.status);
+      console.log('🔍 DEBUG FRONTEND: Response ok:', response.ok);
 
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -102,22 +102,22 @@ const AdminDashboard: React.FC = () => {
       const data = await response.json();
       setDashboardData(data);
       
-      // 🔍 LOGS DETALLADOS PARA DEBUGGING
-      console.log('📊 Datos del dashboard cargados:', data);
-      console.log('🔍 Estructura de datos:', {
+      // 🔍 LOGS DETALLADOS PARA DEBUGGING FRONTEND
+      console.log('📊 FRONTEND: Datos del dashboard cargados:', data);
+      console.log('🔍 FRONTEND: Estructura de datos:', {
         success: data.success,
         total: data.total,
         pareja_count: data.pareja?.count,
         personalidad_count: data.personalidad?.count
       });
       
-      console.log('🔍 Primer cuestionario de pareja:', data.pareja?.questionnaires?.[0]);
-      console.log('🔍 Primer cuestionario de personalidad:', data.personalidad?.questionnaires?.[0]);
+      console.log('🔍 FRONTEND: Primer cuestionario de pareja:', data.pareja?.questionnaires?.[0]);
+      console.log('🔍 FRONTEND: Primer cuestionario de personalidad:', data.personalidad?.questionnaires?.[0]);
       
       // Logs detallados de personalInfo
       if (data.pareja?.questionnaires?.[0]) {
         const firstPareja = data.pareja.questionnaires[0];
-        console.log('🔍 DEBUG Primer cuestionario pareja:');
+        console.log('🔍 FRONTEND DEBUG Primer cuestionario pareja:');
         console.log('   - ID:', firstPareja.id);
         console.log('   - Type:', firstPareja.type);
         console.log('   - personalInfo:', firstPareja.personalInfo);
@@ -125,9 +125,17 @@ const AdminDashboard: React.FC = () => {
         console.log('   - personalInfo.apellidos:', firstPareja.personalInfo?.apellidos);
         console.log('   - personalInfo.edad:', firstPareja.personalInfo?.edad);
         console.log('   - personalInfo.correo:', firstPareja.personalInfo?.correo);
+        console.log('   - personalInfo.genero:', firstPareja.personalInfo?.genero);
+        console.log('   - personalInfo.orientacionSexual:', firstPareja.personalInfo?.orientacionSexual);
         console.log('   - answers:', firstPareja.answers);
         console.log('   - answers keys:', Object.keys(firstPareja.answers || {}));
+        console.log('   - userEmail:', firstPareja.userEmail);
+        console.log('   - userName:', firstPareja.userName);
       }
+      
+      // Logs para todos los cuestionarios
+      console.log('🔍 FRONTEND: Todos los cuestionarios de pareja:', data.pareja?.questionnaires);
+      console.log('🔍 FRONTEND: Todos los cuestionarios de personalidad:', data.personalidad?.questionnaires);
       } catch (err) {
         // console.error('❌ Error cargando dashboard:', err);
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -211,6 +219,50 @@ const AdminDashboard: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
     window.location.hash = '#/admin-login';
+  };
+
+  // Función para corregir datos corruptos
+  const fixCorruptedData = async () => {
+    if (!confirm('¿Estás seguro de que quieres corregir los datos corruptos? Esta acción actualizará la base de datos.')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        alert('No hay token de acceso');
+        return;
+      }
+
+      console.log('🔧 FRONTEND: Iniciando corrección de datos corruptos...');
+
+      const response = await fetch(buildApiUrl('/api/admin/fix-corrupted-data'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('🔧 FRONTEND: Resultado de la corrección:', result);
+
+      if (result.success) {
+        alert(`✅ Corrección completada exitosamente!\n\nTotal cuestionarios: ${result.totalQuestionnaires}\nCorregidos: ${result.fixedCount}`);
+        // Recargar los datos
+        loadDashboardData();
+      } else {
+        alert(`❌ Error en la corrección: ${result.message}`);
+      }
+
+    } catch (error) {
+      console.error('❌ FRONTEND: Error durante la corrección:', error);
+      alert(`❌ Error durante la corrección: ${error.message}`);
+    }
   };
 
 
@@ -869,6 +921,15 @@ const AdminDashboard: React.FC = () => {
                   <Brain className="h-4 w-4 mr-2" />
                   Análisis de Personalidad
                 </Button>
+
+              <Button 
+                onClick={fixCorruptedData} 
+                variant="outline" 
+                size="sm"
+                className="bg-yellow-50 border-yellow-200 text-yellow-800 hover:bg-yellow-100"
+              >
+                🔧 Corregir Datos
+              </Button>
 
               <Button onClick={handleLogout} variant="destructive" size="sm">
                 <LogOut className="h-4 w-4 mr-2" />
