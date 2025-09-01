@@ -708,6 +708,126 @@ router.get('/contact-stats', authenticateToken, requireAdmin, async (req, res) =
 });
 
 /**
+ * POST /api/admin/fix-corrupted-data
+ * Corregir datos corruptos en la base de datos
+ */
+router.post('/fix-corrupted-data', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    console.log('🔧 EJECUTANDO CORRECCIÓN DE DATOS CORRUPTOS');
+    
+    const database = require('../config/database');
+    
+    // Obtener todos los cuestionarios
+    const result = await database.query(`
+      SELECT id, personal_info, answers, type, created_at
+      FROM questionnaires
+      ORDER BY created_at DESC
+    `);
+
+    console.log(`📊 Encontrados ${result.rows.length} cuestionarios`);
+
+    let fixedCount = 0;
+
+    for (const row of result.rows) {
+      console.log(`\n🔍 Procesando cuestionario ID ${row.id}:`);
+      console.log(`   - Tipo: ${row.type}`);
+      console.log(`   - personal_info (raw): ${row.personal_info}`);
+      console.log(`   - answers (raw): ${row.answers}`);
+
+      let needsUpdate = false;
+      let newPersonalInfo = {};
+      let newAnswers = {};
+
+      // Procesar personal_info
+      try {
+        newPersonalInfo = JSON.parse(row.personal_info || '{}');
+        console.log(`   ✅ personal_info parseado correctamente`);
+      } catch (e) {
+        console.log(`   ❌ Error parseando personal_info: ${e.message}`);
+        newPersonalInfo = {
+          nombre: 'Usuario',
+          apellidos: 'Desconocido',
+          edad: 'N/A',
+          genero: 'N/A',
+          correo: 'N/A',
+          orientacionSexual: 'N/A'
+        };
+        needsUpdate = true;
+      }
+
+      // Verificar si personalInfo tiene todos los campos necesarios
+      const requiredFields = ['nombre', 'apellidos', 'edad', 'genero', 'correo', 'orientacionSexual'];
+      for (const field of requiredFields) {
+        if (!newPersonalInfo[field] || newPersonalInfo[field] === '') {
+          console.log(`   ⚠️ Campo faltante: ${field}`);
+          newPersonalInfo[field] = field === 'nombre' ? 'Usuario' : 
+                                  field === 'apellidos' ? 'Desconocido' : 'N/A';
+          needsUpdate = true;
+        }
+      }
+
+      // Procesar answers
+      try {
+        newAnswers = JSON.parse(row.answers || '{}');
+        console.log(`   ✅ answers parseado correctamente`);
+        
+        // Verificar si answers tiene error
+        if (newAnswers.error === 'Error parseando respuestas') {
+          console.log(`   ⚠️ answers tiene error, estableciendo respuestas vacías`);
+          newAnswers = {};
+          needsUpdate = true;
+        }
+      } catch (e) {
+        console.log(`   ❌ Error parseando answers: ${e.message}`);
+        newAnswers = {};
+        needsUpdate = true;
+      }
+
+      // Actualizar si es necesario
+      if (needsUpdate) {
+        console.log(`   🔄 Actualizando cuestionario ID ${row.id}...`);
+        
+        await database.query(`
+          UPDATE questionnaires 
+          SET 
+            personal_info = $1,
+            answers = $2,
+            updated_at = NOW()
+          WHERE id = $3
+        `, [
+          JSON.stringify(newPersonalInfo),
+          JSON.stringify(newAnswers),
+          row.id
+        ]);
+        
+        console.log(`   ✅ Cuestionario ID ${row.id} actualizado`);
+        fixedCount++;
+      } else {
+        console.log(`   ✅ Cuestionario ID ${row.id} no necesita actualización`);
+      }
+    }
+
+    console.log(`\n🎉 Corrección completada! ${fixedCount} cuestionarios corregidos`);
+
+    res.json({
+      success: true,
+      message: `Corrección de datos completada exitosamente`,
+      totalQuestionnaires: result.rows.length,
+      fixedCount: fixedCount,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Error durante la corrección de datos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor durante la corrección',
+      error: error.message
+    });
+  }
+});
+
+/**
  * POST /api/admin/migrate-contact-table
  * Crear tabla contact_messages si no existe (migración temporal)
  */
