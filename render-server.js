@@ -19,6 +19,7 @@ const database = require('./src/config/database');
 const authRoutes = require('./src/routes/auth-simple');
 const questionnaireRoutes = require('./src/routes/questionnaires');
 const adminRoutes = require('./src/routes/admin');
+const contactRoutes = require('./src/routes/contact');
 
 // Crear aplicación Express
 const app = express();
@@ -460,6 +461,7 @@ app.delete('/debug/clean-corrupted', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/questionnaires', questionnaireRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Ruta no encontrada
 app.use('*', (req, res) => {
