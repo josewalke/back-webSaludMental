@@ -39,7 +39,8 @@ const main = async () => {
     
     // Importar y ejecutar el servidor principal
     try {
-      require('./src/server.js');
+      const { startServer } = require('./src/server.js');
+      await startServer();
       console.log('✅ Servidor principal iniciado correctamente');
     } catch (error) {
       console.error('❌ Error iniciando servidor principal:', error);
