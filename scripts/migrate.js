@@ -177,8 +177,19 @@ const runMigration = async () => {
   }
 };
 
+// Función para migración sin cerrar el proceso
+const migrateWithoutExit = async () => {
+  try {
+    await createTables();
+    return true;
+  } catch (error) {
+    console.error('💥 Error en la migración:', error);
+    throw error;
+  }
+};
+
 // Exportar funciones para uso en otros archivos
-module.exports = { createTables, runMigration };
+module.exports = { createTables, runMigration, migrateWithoutExit };
 
 // Solo ejecutar si se llama directamente
 if (require.main === module) {

@@ -14,9 +14,9 @@ const executeMigration = async () => {
   try {
     console.log('🗄️ Ejecutando migración automática en Render...');
     
-    // Importar y ejecutar migración
-    const { runMigration } = require('./scripts/migrate.js');
-    await runMigration();
+    // Importar y ejecutar migración sin cerrar el proceso
+    const { migrateWithoutExit } = require('./scripts/migrate.js');
+    await migrateWithoutExit();
     console.log('✅ Migración completada exitosamente en Render');
     return true;
   } catch (error) {
