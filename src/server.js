@@ -266,10 +266,12 @@ async function startServer() {
     
     // Para PostgreSQL, no necesitamos connect() explícito
     // Solo conectar si es SQLite (desarrollo)
-    if (NODE_ENV === 'development') {
+    if (NODE_ENV === 'development' || !process.env.DATABASE_URL) {
       console.log('🔗 Conectando a SQLite...');
       await database.connect();
       console.log('✅ SQLite conectado exitosamente');
+    } else {
+      console.log('🐘 Usando PostgreSQL (producción)');
     }
     
     // Iniciar servidor
