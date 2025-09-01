@@ -177,4 +177,10 @@ const runMigration = async () => {
   }
 };
 
-runMigration();
+// Exportar funciones para uso en otros archivos
+module.exports = { createTables, runMigration };
+
+// Solo ejecutar si se llama directamente
+if (require.main === module) {
+  runMigration();
+}
