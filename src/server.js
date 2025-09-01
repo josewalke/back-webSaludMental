@@ -65,12 +65,33 @@ app.use(cors({
     const whitelist = [
       'http://localhost:3000',
       'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://localhost:5177', 'http://localhost:5178',
+      'https://reliable-cranachan-d0bee6.netlify.app', // Dominio de Netlify
+      'https://*.netlify.app', // Todos los dominios de Netlify
       process.env.FRONTEND_URL,
       process.env.FRONTEND_URL_ALT
     ].filter(Boolean);
-    if (!origin || whitelist.includes(origin)) {
+    
+    // Permitir requests sin origin (como Postman, curl, etc.)
+    if (!origin) {
       return callback(null, true);
     }
+    
+    // Verificar si el origin está en la whitelist
+    const isAllowed = whitelist.some(allowedOrigin => {
+      if (allowedOrigin.includes('*')) {
+        // Manejar wildcards como *.netlify.app
+        const pattern = allowedOrigin.replace(/\*/g, '.*');
+        const regex = new RegExp(`^${pattern}$`);
+        return regex.test(origin);
+      }
+      return allowedOrigin === origin;
+    });
+    
+    if (isAllowed) {
+      return callback(null, true);
+    }
+    
+    console.log(`🚫 CORS bloqueado para origin: ${origin}`);
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
