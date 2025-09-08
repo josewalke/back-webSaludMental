@@ -72,8 +72,8 @@ app.use(cors({
       process.env.FRONTEND_URL_ALT
     ].filter(Boolean);
     
-    // Permitir requests sin origin (como Postman, curl, etc.)
-    if (!origin) {
+    // Permitir requests sin origin o con origin null (como Postman, curl, archivos locales, etc.)
+    if (!origin || origin === 'null') {
       return callback(null, true);
     }
     
