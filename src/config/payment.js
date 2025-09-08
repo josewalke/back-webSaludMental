@@ -5,7 +5,7 @@
 
 const paymentConfig = {
   isPaid: true, // PAGADO - Acceso habilitado
-  amount: 25000,
+  amount: 1800,
   dueDate: '2024-01-31',
   projectName: 'Love on the Brain',
   developer: 'José Juan Pérez González',
