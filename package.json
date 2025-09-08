@@ -4,7 +4,7 @@
   "description": "Backend API profesional para la aplicación de salud mental con SQLite",
   "main": "src/server.js",
   "scripts": {
-    "start": "node start.js",
+    "start": "node render-start.js",
     "dev": "NODE_ENV=development nodemon src/server.js",
     "build": "echo 'No build step required for Node.js'",
     "test": "jest",

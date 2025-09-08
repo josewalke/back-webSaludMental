@@ -16,6 +16,7 @@ const authRoutes = require('./routes/auth-simple');
 const questionnaireRoutes = require('./routes/questionnaires');
 const adminRoutes = require('./routes/admin');
 const contactRoutes = require('./routes/contact');
+const paymentRoutes = require('./routes/payment');
 
 // Importar middlewares
 // const errorHandler = require('./middleware/errorHandler');
@@ -249,6 +250,43 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/questionnaires', questionnaireRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/payment', paymentRoutes);
+
+// Endpoint de prueba temporal para verificar que las rutas funcionan
+app.get('/api/payment/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Endpoint de pago funcionando correctamente',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Endpoint directo de estado de pago (temporal)
+app.get('/api/payment/status', (req, res) => {
+  try {
+    const paymentConfig = require('./config/payment');
+    const paymentStatus = {
+      ...paymentConfig,
+      lastUpdated: new Date().toISOString(),
+      serverTime: new Date().toISOString(),
+      checksum: 'temp-checksum',
+      environment: process.env.NODE_ENV || 'development'
+    };
+    
+    res.json({
+      success: true,
+      data: paymentStatus,
+      message: paymentStatus.isPaid ? 'Pago verificado' : 'Pago pendiente'
+    });
+  } catch (error) {
+    console.error('Error verificando estado de pago:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor',
+      message: 'No se pudo verificar el estado del pago'
+    });
+  }
+});
 // app.use('/api/analytics', authMiddleware, analyticsRoutes);
 // app.use('/api/system', authMiddleware, systemRoutes);
 
