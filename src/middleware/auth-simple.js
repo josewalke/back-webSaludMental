@@ -5,8 +5,8 @@ const jwt = require('jsonwebtoken');
  * Solo lo esencial para funcionar
  */
 
-// Configuración simple
-const JWT_SECRET = process.env.JWT_SECRET || 'secret_key_change_in_production';
+// Configuración segura
+const JWT_SECRET = process.env.JWT_SECRET || '5e6a1605bc63e86ae63583921f8ae329844697ab555df835d241ad0a694fddbb695b17459e83325ac14e8b10cd55702fb4123f24e92317af3f3b288a3ae0ce42';
 
 /**
  * Generar token JWT simple
@@ -24,13 +24,22 @@ function generateToken(userId, userRole = 'user') {
  */
 function verifyToken(token) {
   try {
-    console.log('🔍 Verificando token:', token.substring(0, 20) + '...');
-    console.log('🔑 JWT_SECRET:', JWT_SECRET);
+    // Solo mostrar logs en desarrollo
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Verificando token:', token.substring(0, 20) + '...');
+    }
+    
     const decoded = jwt.verify(token, JWT_SECRET);
-    console.log('✅ Token válido:', decoded);
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Token válido:', decoded);
+    }
+    
     return decoded;
   } catch (error) {
-    console.error('❌ Error verificando token:', error.message);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('❌ Error verificando token:', error.message);
+    }
     throw new Error('Token inválido');
   }
 }

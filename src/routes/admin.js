@@ -1,39 +1,64 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const Joi = require('joi');
 const { authenticateToken, requireRole } = require('../middleware/auth-simple');
 const User = require('../models/User');
 
 // Middleware para verificar que sea admin
 const requireAdmin = requireRole('admin');
 
+// Esquemas de validación
+const loginSchema = Joi.object({
+  email: Joi.string().email().required().messages({
+    'string.email': 'El email debe tener un formato válido',
+    'any.required': 'El email es requerido'
+  }),
+  password: Joi.string().min(6).required().messages({
+    'string.min': 'La contraseña debe tener al menos 6 caracteres',
+    'any.required': 'La contraseña es requerida'
+  })
+});
+
 // ========================================
 // LOGIN ADMIN
 // ========================================
 router.post('/login', async (req, res) => {
   try {
-    console.log('🔐 INTENTO DE LOGIN ADMIN:', { email: req.body.email });
-    
-    const { email, password } = req.body;
-
-    if (!email || !password) {
+    // Validar datos de entrada
+    const { error, value } = loginSchema.validate(req.body);
+    if (error) {
       return res.status(400).json({
         success: false,
-        message: 'Email y contraseña son requeridos'
+        message: 'Datos de entrada inválidos',
+        details: error.details.map(detail => ({
+          field: detail.path.join('.'),
+          message: detail.message
+        }))
       });
+    }
+
+    const { email, password } = value;
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔐 INTENTO DE LOGIN ADMIN:', { email });
     }
 
     // Buscar usuario por email
     const user = await User.findByEmail(email);
     
-    console.log('🔍 Usuario encontrado:', {
-      id: user?.id,
-      email: user?.email,
-      role: user?.role
-    });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Usuario encontrado:', {
+        id: user?.id,
+        email: user?.email,
+        role: user?.role
+      });
+    }
     
     if (!user) {
-      console.log('❌ Usuario no encontrado');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('❌ Usuario no encontrado');
+      }
       return res.status(401).json({
         success: false,
         message: 'Credenciales inválidas'
@@ -42,7 +67,9 @@ router.post('/login', async (req, res) => {
 
     // Verificar que sea admin
     if (user.role !== 'admin') {
-      console.log('❌ No es admin, role:', user.role);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('❌ No es admin, role:', user.role);
+      }
       return res.status(403).json({
         success: false,
         message: 'Acceso denegado. Solo administradores.'
@@ -53,7 +80,9 @@ router.post('/login', async (req, res) => {
     const isValidPassword = await bcrypt.compare(password, user.password);
     
     if (!isValidPassword) {
-      console.log('❌ Contraseña incorrecta');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('❌ Contraseña incorrecta');
+      }
       return res.status(401).json({
         success: false,
         message: 'Credenciales inválidas'
@@ -64,7 +93,9 @@ router.post('/login', async (req, res) => {
     const { generateToken } = require('../middleware/auth-simple');
     const accessToken = generateToken(user.id, user.role);
 
-    console.log('✅ LOGIN ADMIN EXITOSO:', { userId: user.id, email: user.email });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ LOGIN ADMIN EXITOSO:', { userId: user.id, email: user.email });
+    }
 
     res.json({
       success: true,

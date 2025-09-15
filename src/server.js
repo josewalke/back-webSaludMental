@@ -19,7 +19,7 @@ const contactRoutes = require('./routes/contact');
 const paymentRoutes = require('./routes/payment');
 
 // Importar middlewares
-// const errorHandler = require('./middleware/errorHandler');
+const errorHandler = require('./middleware/errorHandler');
 const authMiddleware = require('./middleware/auth-simple');
 // const requestLogger = require('./middleware/requestLogger');
 
@@ -333,6 +333,14 @@ async function startServer() {
       console.log('🐘 Usando PostgreSQL (producción)');
     }
     
+    // ========================================
+    // MIDDLEWARES DE ERROR HANDLING
+    // ========================================
+    
+    // Error handler debe ir al final, después de todas las rutas
+    app.use(errorHandler.errorHandler);
+    app.use(errorHandler.notFoundHandler);
+
     // Iniciar servidor
     server = app.listen(PORT, HOST, () => {
       console.log('🚀 Servidor backend iniciado exitosamente!');
